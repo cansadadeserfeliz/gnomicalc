@@ -13,6 +13,14 @@
 pip install -r requirements.txt
 ```
 
+(Opcional) Agrega `.env` apra fijar los valores de entrada:
+
+Ejemplo:
+
+```
+SALARY=2500000
+```
+
 ## :receipt: Cómo usar
 
 ```
