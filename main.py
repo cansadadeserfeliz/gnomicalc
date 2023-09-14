@@ -23,8 +23,8 @@ SMMLV = SMMLV_2023 = Decimal('1160000')
 TRANSPORTATION_SUBSIDY = Decimal('140606')
 TRANSPORTATION_SUBSIDY_MAX_SALARY = 2 * SMMLV
 
-HEALTH_BENEFIT_PERCENTAGE = Decimal('0.4')
-PENSION_BENEFIT_PERCENTAGE = Decimal('0.4')
+HEALTH_BENEFIT_PERCENTAGE = Decimal('0.04')
+PENSION_BENEFIT_PERCENTAGE = Decimal('0.04')
 
 
 class Gnomina:
@@ -151,9 +151,9 @@ class Gnomina:
         = Total devengado:\t {moneyfmt(wages_earned)}
         
         Ingreso base de cotización:\t {moneyfmt(contribution_base_income)}
-        Salud:\t {moneyfmt(health_benefit)}
-        Pensión:\t {moneyfmt(pension_benefit)}
-        FSP:\t {moneyfmt(pension_solidarity_fund_value)}
+        Salud obligatoria:\t {moneyfmt(health_benefit)}
+        Pensión obligatoria:\t {moneyfmt(pension_benefit)}
+        Fondo de solidaridad:\t {moneyfmt(pension_solidarity_fund_value)}
         Incapacidades:\t {moneyfmt(sick_pay_deductions)}
         = Total deducido:\t {moneyfmt(deductions)}
 
