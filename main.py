@@ -40,11 +40,14 @@ class Gnomina:
 
     @property
     def is_comprehensive_salary(self) -> bool:
-        """Es un salario integral? (salario que incluye prestaciones sociales) - Art 132 CST
+        """Es un salario integral? (salario que incluye prestaciones sociales)
 
-        10 SMMLV + 30% (?)
+        Art 132 Código Sustantivo del Trabajo (CST)
+
+        Es la suma de 10 salarios mínimos mensuales,
+        más un 30% de carga prestacional equivalentes a tres salarios mínimos
         """
-        COMPREHENSIVE_SALARY_MIN = 13 * SMMLV
+        COMPREHENSIVE_SALARY_MIN = 10 * SMMLV + 3 * SMMLV
         logger.info(f'Salario mínimo integral vigente: {moneyfmt(COMPREHENSIVE_SALARY_MIN)}')
         if self.salary_base >= COMPREHENSIVE_SALARY_MIN:
             return True
@@ -75,14 +78,16 @@ class Gnomina:
         al sistema de seguridad social."""
         return wages_earned - transportation_subsidy
 
-    @staticmethod
-    def get_health_benefit(contribution_base_income: Decimal) -> Decimal:
+    def get_health_benefit(self, contribution_base_income: Decimal) -> Decimal:
         """Salud obligatoria"""
+        if self.is_comprehensive_salary:
+            return (contribution_base_income * Decimal('0.70')) * HEALTH_BENEFIT_PERCENTAGE
         return contribution_base_income * HEALTH_BENEFIT_PERCENTAGE
 
-    @staticmethod
-    def get_pension_benefit(contribution_base_income: Decimal) -> Decimal:
-        """Pansion"""
+    def get_pension_benefit(self, contribution_base_income: Decimal) -> Decimal:
+        """Pensión obligatoria"""
+        if self.is_comprehensive_salary:
+            return (contribution_base_income * Decimal('0.70')) * PENSION_BENEFIT_PERCENTAGE
         return contribution_base_income * PENSION_BENEFIT_PERCENTAGE
 
     @staticmethod
@@ -93,21 +98,24 @@ class Gnomina:
         if contribution_base_income < SMMLV * 4:
             return Decimal('0')
         if SMMLV * 4 <= contribution_base_income < SMMLV * 16:
-            return Decimal('1')
+            return Decimal('0.01')
         if SMMLV * 16 <= contribution_base_income < SMMLV * 17:
-            return Decimal('1.20')
+            return Decimal('0.012')
         if SMMLV * 17 <= contribution_base_income < SMMLV * 18:
-            return Decimal('1.40')
+            return Decimal('0.014')
         if SMMLV * 18 <= contribution_base_income < SMMLV * 19:
-            return Decimal('1.60')
+            return Decimal('0.016')
         if SMMLV * 19 <= contribution_base_income < SMMLV * 20:
-            return Decimal('1.80')
-        return Decimal('2')
+            return Decimal('0.018')
+        return Decimal('0.02')
 
     def get_pension_solidarity_fund_value(self, contribution_base_income: Decimal) -> Decimal:
+        """
+        TODO: fix to match https://www.elempleo.com/co/calculadora-salarial/
+        """
         percentage = self.get_pension_solidarity_fund_percentage(contribution_base_income=contribution_base_income)
         logger.info(f'Porsentaje FSP {moneyfmt(percentage)}')
-        return contribution_base_income * percentage
+        return self.wage * percentage
 
     def get_sick_pay_deductions(self) -> Decimal:
         """TODO:
@@ -118,6 +126,42 @@ class Gnomina:
             ARL cubre 100%
         """
         return Decimal('0')
+
+    @staticmethod
+    def get_tax_value_unit():
+        """La unidad de valor tributario – UVT.
+
+        Source: https://www.dian.gov.co/normatividad/Normatividad/Resoluci%C3%B3n%20001264%20de%2018-11-2022.pdf
+        """
+        return Decimal('42412')
+
+    def get_withholding_tax(self, tax_base) -> Decimal:
+        """Retención en la fuente.
+
+        Reference: https://estatuto.co/383
+        """
+        tax_value_unit = self.get_tax_value_unit()
+
+        salary_in_uvt = tax_base / tax_value_unit
+
+        # TODO: fix this value to match https://www.elempleo.com/co/calculadora-salarial/
+
+        if salary_in_uvt <= 95:
+            tax_in_uvt = Decimal('0')
+        elif 95 < salary_in_uvt <= 150:
+            tax_in_uvt = (salary_in_uvt - 95) * Decimal('0.19')
+        elif 150 < salary_in_uvt <= 360:
+            tax_in_uvt = (salary_in_uvt - 150) * Decimal('0.28')
+        elif 360 < salary_in_uvt <= 640:
+            tax_in_uvt = (salary_in_uvt - 360) * Decimal('0.33')
+        elif 640 < salary_in_uvt <= 945:
+            tax_in_uvt = (salary_in_uvt - 640) * Decimal('0.35')
+        elif 945 < salary_in_uvt <= 2300:
+            tax_in_uvt = (salary_in_uvt - 945) * Decimal('0.37')
+        else:
+            tax_in_uvt = (salary_in_uvt - 2300) * Decimal('0.39')
+
+        return tax_in_uvt * tax_value_unit
 
     def calculate(self):
         transportation_subsidy = self.get_transportation_subsidy()
@@ -135,7 +179,11 @@ class Gnomina:
         pension_solidarity_fund_value = self.get_pension_solidarity_fund_value(contribution_base_income=contribution_base_income)
         sick_pay_deductions = self.get_sick_pay_deductions()
 
-        deductions = health_benefit + pension_benefit + pension_solidarity_fund_value + sick_pay_deductions
+        tax_base = contribution_base_income - health_benefit - pension_benefit
+
+        withholding_tax = self.get_withholding_tax(tax_base=tax_base)
+
+        deductions = health_benefit + pension_benefit + pension_solidarity_fund_value + sick_pay_deductions + withholding_tax
 
         wages_paid = wages_earned - deductions
 
@@ -155,9 +203,11 @@ class Gnomina:
         Pensión obligatoria:\t {moneyfmt(pension_benefit)}
         Fondo de solidaridad:\t {moneyfmt(pension_solidarity_fund_value)}
         Incapacidades:\t {moneyfmt(sick_pay_deductions)}
+        Base gravable:\t {moneyfmt(tax_base)}
+        Retención en la fuente:\t {moneyfmt(withholding_tax)}
         = Total deducido:\t {moneyfmt(deductions)}
 
-        Neto a pagar:\t {moneyfmt(wages_paid)}
+        Compensación neta por {self.payment_days} días:\t {moneyfmt(wages_paid)}
         '''
         print(result)
 
