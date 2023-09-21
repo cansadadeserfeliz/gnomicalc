@@ -34,7 +34,7 @@ class Gnomina:
         self.payment_days = payment_days
 
         # Sueldo
-        self.wage = self.salary_base / 30 * self.payment_days
+        self.wage = (self.salary_base / 30) * self.payment_days
 
         self.calculate()
 
@@ -133,7 +133,11 @@ class Gnomina:
 
         Source: https://www.dian.gov.co/normatividad/Normatividad/Resoluci%C3%B3n%20001264%20de%2018-11-2022.pdf
         """
-        return Decimal('42412')
+        tax_value_unit = Decimal('42412')
+        logger.info(f'Unidad de Valor Tributario (UVT): {moneyfmt(tax_value_unit)}')
+        logger.info(f'Aporte FVP Máximo Exento: {moneyfmt(tax_value_unit * 1340)}')
+
+        return tax_value_unit
 
     def get_withholding_tax(self, tax_base) -> Decimal:
         """Retención en la fuente.
@@ -160,6 +164,8 @@ class Gnomina:
             tax_in_uvt = (salary_in_uvt - 945) * Decimal('0.37')
         else:
             tax_in_uvt = (salary_in_uvt - 2300) * Decimal('0.39')
+
+        tax_in_uvt = min(tax_in_uvt, 790 * tax_value_unit)
 
         return tax_in_uvt * tax_value_unit
 
@@ -193,6 +199,8 @@ class Gnomina:
         🧙Gnómina del salario base mensual:\t {moneyfmt(self.salary_base)}
         
         Días a pagar:\t {self.payment_days} días
+        Salario:\t {moneyfmt(self.wage)}
+        
         Horas Extras y Recargos:\t {moneyfmt(overtime_payment)}
         Auxilio transporte (si aplica):\t {moneyfmt(transportation_subsidy)}
         Sueldo:\t {moneyfmt(self.wage)}
@@ -225,4 +233,11 @@ if __name__ == '__main__':
     else:
         input_salary = Decimal(input(input_message))
 
-    Gnomina(salary_base=input_salary)
+    env_input_days = os.getenv('DAYS')
+    if env_input_days is not None:
+        logger.info('Valor de DAYS entontrado en .env')
+        input_days = int(env_input_days)
+    else:
+        input_days = int(input(input_message))
+
+    Gnomina(salary_base=input_salary, payment_days=input_days)
