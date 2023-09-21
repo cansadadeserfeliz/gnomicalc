@@ -19,6 +19,8 @@ Ejemplo:
 
 ```
 SALARY=2500000
+DAYS=29
+EXTRALEGAL_VACATION_DAYS=1
 ```
 
 ## :receipt: Cómo usar

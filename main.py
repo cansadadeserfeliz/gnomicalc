@@ -29,12 +29,20 @@ PENSION_BENEFIT_PERCENTAGE = Decimal('0.04')
 
 class Gnomina:
 
-    def __init__(self, salary_base: Decimal, payment_days: int = 30):
+    def __init__(
+            self,
+            salary_base: Decimal,
+            payment_days: int = 30,
+            extralegal_vacation_days: int = 0,
+    ):
         self.salary_base = salary_base
         self.payment_days = payment_days
+        self.extralegal_vacation_days = extralegal_vacation_days
 
         # Sueldo
-        self.wage = (self.salary_base / 30) * self.payment_days
+        salary_per_day = self.salary_base / Decimal('30')
+        self.wage = salary_per_day * Decimal(self.payment_days)
+        self.extralegal_vacation_wage = salary_per_day * Decimal(extralegal_vacation_days)
 
         self.calculate()
 
@@ -174,7 +182,7 @@ class Gnomina:
         overtime_payment = self.get_overtime_payment()
 
         # Total devengado
-        wages_earned = self.wage + overtime_payment + transportation_subsidy
+        wages_earned = self.wage + overtime_payment + transportation_subsidy + self.extralegal_vacation_wage
 
         contribution_base_income = self.get_contribution_base_income(
             wages_earned=wages_earned,
@@ -200,6 +208,9 @@ class Gnomina:
         
         Días a pagar:\t {self.payment_days} días
         Salario:\t {moneyfmt(self.wage)}
+        
+        Días de las vacaciones extralegales: {self.extralegal_vacation_days}
+        Vacaciones extralegales: {moneyfmt(self.extralegal_vacation_wage)}
         
         Horas Extras y Recargos:\t {moneyfmt(overtime_payment)}
         Auxilio transporte (si aplica):\t {moneyfmt(transportation_subsidy)}
@@ -240,4 +251,10 @@ if __name__ == '__main__':
     else:
         input_days = int(input(input_message))
 
-    Gnomina(salary_base=input_salary, payment_days=input_days)
+    extralegal_vacation_days = os.getenv('EXTRALEGAL_VACATION_DAYS', 0)
+
+    Gnomina(
+        salary_base=input_salary,
+        payment_days=input_days,
+        extralegal_vacation_days=extralegal_vacation_days,
+    )
